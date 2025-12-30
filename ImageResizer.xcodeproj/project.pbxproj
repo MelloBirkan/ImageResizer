@@ -6,14 +6,24 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AD74CAE32F03900000945672 /* ImgrsCore.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AD74CAE22F03900000945672 /* ImgrsCore.xcframework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		AD74CAD32F0383AE00945672 /* ImageResizer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ImageResizer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AD74CAE22F03900000945672 /* ImgrsCore.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = ImgrsCore.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		AD74CAD52F0383AE00945672 /* ImageResizer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ImageResizer;
+			sourceTree = "<group>";
+		};
+		AD74CAE12F03900000945672 /* swift-bindings */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "swift-bindings";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -23,6 +33,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AD74CAE32F03900000945672 /* ImgrsCore.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -33,6 +44,8 @@
 			isa = PBXGroup;
 			children = (
 				AD74CAD52F0383AE00945672 /* ImageResizer */,
+				AD74CAE12F03900000945672 /* swift-bindings */,
+				AD74CAE22F03900000945672 /* ImgrsCore.xcframework */,
 				AD74CAD42F0383AE00945672 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -62,6 +75,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				AD74CAD52F0383AE00945672 /* ImageResizer */,
+				AD74CAE12F03900000945672 /* swift-bindings */,
 			);
 			name = ImageResizer;
 			packageProductDependencies = (
