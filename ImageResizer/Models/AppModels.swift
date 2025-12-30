@@ -76,3 +76,20 @@ enum OutputFormat: String, CaseIterable, Sendable, Hashable {
         }
     }
 }
+
+extension ResizeAlgorithm: CaseIterable {
+    public static var allCases: [ResizeAlgorithm] {
+        [.nearest, .bilinear, .lanczos3]
+    }
+
+    public var displayName: String {
+        switch self {
+        case .nearest:
+            return "Nearest (Fastest)"
+        case .bilinear:
+            return "Bilinear (Balanced)"
+        case .lanczos3:
+            return "Lanczos3 (Highest Quality)"
+        }
+    }
+}
