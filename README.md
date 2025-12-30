@@ -31,6 +31,31 @@ flowchart LR
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
 ```
 
+## Setup on a New Mac (After Cloning)
+
+The `ImgrsCore.xcframework` is **not** included in the repository (it's in `.gitignore`). To get the project working:
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/MelloBirkan/ImageResizer.git
+cd ImageResizer
+```
+
+2. Build the Rust framework (generates `ImgrsCore.xcframework`):
+
+```bash
+./scripts/build-rust.sh
+```
+
+3. Open in Xcode and run:
+
+```bash
+open ImageResizer.xcodeproj
+```
+
+The framework will be generated automatically in the first step. The Xcode project is already configured to use it.
+
 ## Project Structure
 
 ```
