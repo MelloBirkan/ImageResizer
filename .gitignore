@@ -28,3 +28,6 @@ Packages/
 # Rust
 target/
 **/*.rs.bk
+
+# Build artifacts
+ImgrsCore.xcframework/
