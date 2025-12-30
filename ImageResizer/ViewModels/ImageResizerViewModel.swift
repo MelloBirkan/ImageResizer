@@ -48,8 +48,7 @@ final class ImageResizerViewModel {
     }
 
     init() {
-        outputURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Desktop", isDirectory: true)
+        outputURL = nil
         loadSupportedFormats()
     }
 
@@ -63,12 +62,23 @@ final class ImageResizerViewModel {
         resultInfo = nil
         originalImageInfo = nil
 
-        outputURL = FileManager.default.generateOutputPath(from: url, format: selectedFormat)
+        // Output must be user-selected (sandbox) via NSSavePanel.
+        outputURL = nil
         Task { await loadImageInfo(url) }
     }
 
     func loadImageInfo(_ url: URL) async {
         errorMessage = nil
+
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess { url.stopAccessingSecurityScopedResource() }
+        }
+
+        if !didAccess, !FileManager.default.isReadableFile(atPath: url.path) {
+            errorMessage = "Please re-select the input image"
+            return
+        }
 
         do {
             let info = try getImageInfo(path: url.path)
@@ -115,9 +125,14 @@ final class ImageResizerViewModel {
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
-        panel.nameFieldStringValue = outputURL?.lastPathComponent ?? "image_resized"
-        panel.directoryURL = outputURL?.deletingLastPathComponent()
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop", isDirectory: true)
+        if let selectedImageURL {
+            let suggested = FileManager.default.generateOutputPath(from: selectedImageURL, format: selectedFormat)
+            panel.nameFieldStringValue = suggested.lastPathComponent
+        } else {
+            panel.nameFieldStringValue = "image_resized"
+        }
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Desktop", isDirectory: true)
 
         if panel.runModal() == .OK, let url = panel.url {
             outputURL = url
@@ -159,6 +174,26 @@ final class ImageResizerViewModel {
             algorithm: selectedAlgorithm,
             outputFormat: selectedFormat.toUniFFIOutputFormat()
         )
+
+        let didAccessInput = inputURL.startAccessingSecurityScopedResource()
+        let didAccessOutput = outputURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccessInput { inputURL.stopAccessingSecurityScopedResource() }
+            if didAccessOutput { outputURL.stopAccessingSecurityScopedResource() }
+        }
+
+        if !didAccessInput, !FileManager.default.isReadableFile(atPath: inputURL.path) {
+            errorMessage = "Please re-select the input image"
+            return
+        }
+
+        if !didAccessOutput {
+            let dir = outputURL.deletingLastPathComponent()
+            if !FileManager.default.isWritableFile(atPath: dir.path) {
+                errorMessage = "Please choose an output location"
+                return
+            }
+        }
 
         do {
             let info = try ImageResizer.resizeImage(

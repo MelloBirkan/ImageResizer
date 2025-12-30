@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import Observation
 import UniformTypeIdentifiers
 
@@ -53,30 +54,70 @@ struct DropZoneView: View {
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else {
+        guard let provider = providers.first(where: {
+            $0.hasItemConformingToTypeIdentifier(UTType.image.identifier) ||
+                $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+        }) else {
             return false
         }
 
-        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-            let url: URL?
-            if let data = item as? Data {
-                url = URL(dataRepresentation: data, relativeTo: nil)
-            } else if let found = item as? URL {
-                url = found
-            } else {
-                url = nil
-            }
+        if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+            provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, _ in
+                guard let url else { return }
 
-            guard let url else {
-                return
-            }
+                let tmpDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("ImageResizerDrops", isDirectory: true)
+                try? FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true, attributes: nil)
 
-            Task { @MainActor in
-                guard FileManager.default.isImageFile(url) else {
-                    viewModel.errorMessage = "Please drop an image file"
+                let baseName = provider.suggestedName ?? url.deletingPathExtension().lastPathComponent
+                let ext = url.pathExtension.isEmpty ? "png" : url.pathExtension
+                var dest = tmpDir.appendingPathComponent(baseName).appendingPathExtension(ext)
+
+                if FileManager.default.fileExists(atPath: dest.path) {
+                    dest = tmpDir
+                        .appendingPathComponent("\(baseName)-\(UUID().uuidString)")
+                        .appendingPathExtension(ext)
+                }
+
+                let finalDest = dest
+
+                do {
+                    try FileManager.default.copyItem(at: url, to: finalDest)
+                } catch {
+                    Task { @MainActor in
+                        viewModel.errorMessage = "File error: \(error.localizedDescription)"
+                    }
                     return
                 }
-                viewModel.selectImage(url)
+
+                Task { @MainActor in
+                    guard FileManager.default.isImageFile(finalDest) else {
+                        viewModel.errorMessage = "Please drop an image file"
+                        return
+                    }
+                    viewModel.selectImage(finalDest)
+                }
+            }
+        } else {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                let url: URL?
+                if let data = item as? Data {
+                    url = URL(dataRepresentation: data, relativeTo: nil)
+                } else if let found = item as? URL {
+                    url = found
+                } else {
+                    url = nil
+                }
+
+                guard let url else { return }
+
+                Task { @MainActor in
+                    guard FileManager.default.isImageFile(url) else {
+                        viewModel.errorMessage = "Please drop an image file"
+                        return
+                    }
+                    viewModel.selectImage(url)
+                }
             }
         }
 
