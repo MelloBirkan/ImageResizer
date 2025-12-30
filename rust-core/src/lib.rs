@@ -25,6 +25,14 @@ pub struct ResizeOptions {
     pub output_format: Option<String>,
 }
 
+pub struct CropOptions {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub output_format: Option<String>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ImageError {
     #[error("IO error: {message}")]
@@ -250,6 +258,89 @@ pub fn resize_image(
             img::DynamicImage::ImageRgb8(img::DynamicImage::ImageRgba8(dst_rgba).to_rgb8())
         }
         _ => img::DynamicImage::ImageRgba8(dst_rgba),
+    };
+
+    out_dyn.save_with_format(&output_path, output_format)?;
+    get_image_info(output_path)
+}
+
+/// Crops a region from `input_path` and writes it to `output_path`.
+///
+/// The crop rectangle is defined by `options.x`, `options.y`, `options.width`, and `options.height`.
+///
+/// If the cropped result is not exactly 856×836, it is resized to 856×836.
+pub fn crop_image(
+    input_path: String,
+    output_path: String,
+    options: CropOptions,
+) -> Result<ImageInfo, ImageError> {
+    const OUTPUT_WIDTH: u32 = 856;
+    const OUTPUT_HEIGHT: u32 = 836;
+
+    if input_path.trim().is_empty() {
+        return Err(ImageError::IoError {
+            message: "input_path is empty".to_string(),
+        });
+    }
+    if output_path.trim().is_empty() {
+        return Err(ImageError::IoError {
+            message: "output_path is empty".to_string(),
+        });
+    }
+    if options.width == 0 {
+        return Err(ImageError::InvalidDimensions {
+            message: "width must be > 0".to_string(),
+        });
+    }
+    if options.height == 0 {
+        return Err(ImageError::InvalidDimensions {
+            message: "height must be > 0".to_string(),
+        });
+    }
+
+    let src_dyn = img::open(&input_path)?;
+    let (src_width, src_height) = src_dyn.dimensions();
+
+    if options.x >= src_width || options.y >= src_height {
+        return Err(ImageError::InvalidDimensions {
+            message: "crop origin is outside image bounds".to_string(),
+        });
+    }
+
+    let max_width = src_width - options.x;
+    let max_height = src_height - options.y;
+    let crop_width = options.width.min(max_width).max(1);
+    let crop_height = options.height.min(max_height).max(1);
+
+    let src_rgba = src_dyn.to_rgba8();
+    let cropped_rgba = img::imageops::crop_imm(&src_rgba, options.x, options.y, crop_width, crop_height).to_image();
+
+    let mut out_rgba = cropped_rgba;
+    if crop_width != OUTPUT_WIDTH || crop_height != OUTPUT_HEIGHT {
+        let src_buf = out_rgba.as_raw();
+        let src_image =
+            fir::images::ImageRef::new(crop_width, crop_height, src_buf, fir::PixelType::U8x4)?;
+
+        let mut dst_image = fir::images::Image::new(OUTPUT_WIDTH, OUTPUT_HEIGHT, fir::PixelType::U8x4);
+
+        let fir_options = fir::ResizeOptions::new().resize_alg(fir::ResizeAlg::Convolution(fir::FilterType::Lanczos3));
+        let mut resizer = fir::Resizer::new();
+        resizer.resize(&src_image, &mut dst_image, Some(&fir_options))?;
+
+        let dst_buf = dst_image.into_vec();
+        out_rgba = img::RgbaImage::from_raw(OUTPUT_WIDTH, OUTPUT_HEIGHT, dst_buf).ok_or(
+            ImageError::ProcessingError {
+                message: "failed to construct RGBA image from resized buffer".to_string(),
+            },
+        )?;
+    }
+
+    let output_format = infer_output_format(&output_path, options.output_format)?;
+    let out_dyn = match output_format {
+        img::ImageFormat::Jpeg => {
+            img::DynamicImage::ImageRgb8(img::DynamicImage::ImageRgba8(out_rgba).to_rgb8())
+        }
+        _ => img::DynamicImage::ImageRgba8(out_rgba),
     };
 
     out_dyn.save_with_format(&output_path, output_format)?;

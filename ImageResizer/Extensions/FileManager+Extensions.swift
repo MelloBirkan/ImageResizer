@@ -24,9 +24,11 @@ extension FileManager {
         formatFileSize(bytes)
     }
 
-    func generateOutputPath(from inputURL: URL, format: OutputFormat?) -> URL {
+    func generateOutputPath(from inputURL: URL, format: OutputFormat?, mode: OperationMode) -> URL {
         let directory = inputURL.deletingLastPathComponent()
         let baseName = inputURL.deletingPathExtension().lastPathComponent
+
+        let suffix = mode == .crop ? "_cropped" : "_resized"
 
         let ext: String
         switch format ?? .sameAsInput {
@@ -40,8 +42,12 @@ extension FileManager {
             ext = "webp"
         }
 
-        let filename = ext.isEmpty ? "\(baseName)_resized" : "\(baseName)_resized.\(ext)"
+        let filename = ext.isEmpty ? "\(baseName)\(suffix)" : "\(baseName)\(suffix).\(ext)"
         return directory.appendingPathComponent(filename)
+    }
+
+    func generateOutputPath(from inputURL: URL, format: OutputFormat?) -> URL {
+        generateOutputPath(from: inputURL, format: format, mode: .resize)
     }
 
     func isImageFile(_ url: URL) -> Bool {

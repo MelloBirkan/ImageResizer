@@ -9,6 +9,13 @@ namespace imgrs_core {
     ResizeOptions options
   );
 
+  [Throws=ImageError]
+  ImageInfo crop_image(
+    string input_path,
+    string output_path,
+    CropOptions options
+  );
+
   sequence<string> get_supported_formats();
 };
 
@@ -30,6 +37,14 @@ dictionary ResizeOptions {
   u32 width;
   u32? height;
   ResizeAlgorithm algorithm;
+  string? output_format;
+};
+
+dictionary CropOptions {
+  u32 x;
+  u32 y;
+  u32 width;
+  u32 height;
   string? output_format;
 };
 

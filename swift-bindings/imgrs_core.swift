@@ -471,6 +471,100 @@ fileprivate struct FfiConverterString: FfiConverter {
 }
 
 
+public struct CropOptions {
+    public var x: UInt32
+    public var y: UInt32
+    public var width: UInt32
+    public var height: UInt32
+    public var outputFormat: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(x: UInt32, y: UInt32, width: UInt32, height: UInt32, outputFormat: String?) {
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.outputFormat = outputFormat
+    }
+}
+
+#if compiler(>=6)
+extension CropOptions: Sendable {}
+#endif
+
+
+extension CropOptions: Equatable, Hashable {
+    public static func ==(lhs: CropOptions, rhs: CropOptions) -> Bool {
+        if lhs.x != rhs.x {
+            return false
+        }
+        if lhs.y != rhs.y {
+            return false
+        }
+        if lhs.width != rhs.width {
+            return false
+        }
+        if lhs.height != rhs.height {
+            return false
+        }
+        if lhs.outputFormat != rhs.outputFormat {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(x)
+        hasher.combine(y)
+        hasher.combine(width)
+        hasher.combine(height)
+        hasher.combine(outputFormat)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCropOptions: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CropOptions {
+        return
+            try CropOptions(
+                x: FfiConverterUInt32.read(from: &buf), 
+                y: FfiConverterUInt32.read(from: &buf), 
+                width: FfiConverterUInt32.read(from: &buf), 
+                height: FfiConverterUInt32.read(from: &buf), 
+                outputFormat: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CropOptions, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.x, into: &buf)
+        FfiConverterUInt32.write(value.y, into: &buf)
+        FfiConverterUInt32.write(value.width, into: &buf)
+        FfiConverterUInt32.write(value.height, into: &buf)
+        FfiConverterOptionString.write(value.outputFormat, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCropOptions_lift(_ buf: RustBuffer) throws -> CropOptions {
+    return try FfiConverterTypeCropOptions.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCropOptions_lower(_ value: CropOptions) -> RustBuffer {
+    return FfiConverterTypeCropOptions.lower(value)
+}
+
+
 public struct ImageInfo {
     public var width: UInt32
     public var height: UInt32
@@ -905,6 +999,15 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
         return seq
     }
 }
+public func cropImage(inputPath: String, outputPath: String, options: CropOptions)throws  -> ImageInfo  {
+    return try  FfiConverterTypeImageInfo_lift(try rustCallWithError(FfiConverterTypeImageError_lift) {
+    uniffi_imgrs_core_fn_func_crop_image(
+        FfiConverterString.lower(inputPath),
+        FfiConverterString.lower(outputPath),
+        FfiConverterTypeCropOptions_lower(options),$0
+    )
+})
+}
 public func getImageInfo(path: String)throws  -> ImageInfo  {
     return try  FfiConverterTypeImageInfo_lift(try rustCallWithError(FfiConverterTypeImageError_lift) {
     uniffi_imgrs_core_fn_func_get_image_info(
@@ -942,6 +1045,9 @@ private let initializationResult: InitializationResult = {
     let scaffolding_contract_version = ffi_imgrs_core_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
+    }
+    if (uniffi_imgrs_core_checksum_func_crop_image() != 32115) {
+        return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_imgrs_core_checksum_func_get_image_info() != 21006) {
         return InitializationResult.apiChecksumMismatch

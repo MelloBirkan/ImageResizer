@@ -12,14 +12,29 @@ struct ContentView: View {
     @State private var viewModel = ImageResizerViewModel()
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         VStack(spacing: 16) {
             DropZoneView(viewModel: viewModel)
 
-            if viewModel.selectedImageURL != nil {
-                ImagePreviewView(imageInfo: viewModel.originalImageInfo)
+            Picker("Mode", selection: $viewModel.operationMode) {
+                ForEach(OperationMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
             }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
 
-            ResizeOptionsView(viewModel: viewModel)
+            if viewModel.selectedImageURL != nil {
+                switch viewModel.operationMode {
+                case .resize:
+                    ImagePreviewView(imageInfo: viewModel.originalImageInfo)
+                    ResizeOptionsView(viewModel: viewModel)
+                case .crop:
+                    CropView(viewModel: viewModel)
+                    CropOptionsView(viewModel: viewModel)
+                }
+            }
 
             HStack(spacing: 8) {
                 Text("Save to:")
@@ -37,18 +52,29 @@ struct ContentView: View {
             }
 
             Button {
-                Task { await viewModel.resizeImage() }
+                Task {
+                    switch viewModel.operationMode {
+                    case .resize:
+                        await viewModel.resizeImage()
+                    case .crop:
+                        await viewModel.cropImage()
+                    }
+                }
             } label: {
                 HStack(spacing: 8) {
                     if viewModel.isProcessing {
                         ProgressView()
                             .controlSize(.small)
                     }
-                    Text(viewModel.isProcessing ? "Resizing…" : "Resize Image")
+                    Text(
+                        viewModel.isProcessing
+                            ? "Processing…"
+                            : (viewModel.operationMode == .resize ? "Resize Image" : "Crop Image")
+                    )
                 }
                 .frame(maxWidth: .infinity)
             }
-            .disabled(!viewModel.canResize || viewModel.isProcessing)
+            .disabled(!viewModel.canProcess || viewModel.isProcessing)
             .controlSize(.large)
 
             ResultView(resultInfo: viewModel.resultInfo, errorMessage: viewModel.errorMessage)

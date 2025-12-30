@@ -1,13 +1,28 @@
 import Foundation
 import Observation
+import CoreGraphics
 
 #if canImport(AppKit)
 import AppKit
 #endif
 
+enum OperationMode: String, CaseIterable {
+    case resize
+    case crop
+
+    var displayName: String {
+        switch self {
+        case .resize: return "Resize"
+        case .crop: return "Crop"
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class ImageResizerViewModel {
+    var operationMode: OperationMode = .resize
+
     var selectedImageURL: URL?
     var originalImageInfo: AppImageInfo?
 
@@ -18,6 +33,10 @@ final class ImageResizerViewModel {
     var selectedAlgorithm: ResizeAlgorithm = .lanczos3
     var selectedFormat: OutputFormat = .sameAsInput
 
+    var cropRect: CropRect = CropRect(x: 0, y: 0)
+    var selectedCropFormat: OutputFormat = .sameAsInput
+    var cropDisplayedImageSize: CGSize = .zero
+
     var outputURL: URL?
 
     var isProcessing: Bool = false
@@ -25,16 +44,24 @@ final class ImageResizerViewModel {
     var errorMessage: String?
     var supportedFormats: [String] = []
 
-    var canResize: Bool {
+    var canProcess: Bool {
         guard selectedImageURL != nil else { return false }
         guard outputURL != nil else { return false }
-        guard let width = parseUInt32(targetWidth), (1...9999).contains(Int(width)) else { return false }
-        if lockAspectRatio {
+
+        switch operationMode {
+        case .resize:
+            guard let width = parseUInt32(targetWidth), (1...9999).contains(Int(width)) else { return false }
+            if lockAspectRatio {
+                return true
+            }
+            guard let height = parseUInt32(targetHeight), (1...9999).contains(Int(height)) else { return false }
+            return true
+        case .crop:
             return true
         }
-        guard let height = parseUInt32(targetHeight), (1...9999).contains(Int(height)) else { return false }
-        return true
     }
+
+    var canResize: Bool { canProcess }
 
     var calculatedHeight: UInt32? {
         guard lockAspectRatio else { return nil }
@@ -61,6 +88,9 @@ final class ImageResizerViewModel {
         errorMessage = nil
         resultInfo = nil
         originalImageInfo = nil
+
+        cropRect = CropRect(x: 0, y: 0)
+        cropDisplayedImageSize = .zero
 
         // Output must be user-selected (sandbox) via NSSavePanel.
         outputURL = nil
@@ -126,10 +156,11 @@ final class ImageResizerViewModel {
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         if let selectedImageURL {
-            let suggested = FileManager.default.generateOutputPath(from: selectedImageURL, format: selectedFormat)
+            let format: OutputFormat = (operationMode == .crop) ? selectedCropFormat : selectedFormat
+            let suggested = FileManager.default.generateOutputPath(from: selectedImageURL, format: format, mode: operationMode)
             panel.nameFieldStringValue = suggested.lastPathComponent
         } else {
-            panel.nameFieldStringValue = "image_resized"
+            panel.nameFieldStringValue = operationMode == .crop ? "image_cropped" : "image_resized"
         }
         panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Desktop", isDirectory: true)
@@ -205,6 +236,105 @@ final class ImageResizerViewModel {
         } catch {
             errorMessage = userMessage(for: error)
         }
+    }
+
+    func cropImage() async {
+        errorMessage = nil
+        guard let inputURL = selectedImageURL else {
+            errorMessage = "Please select an image"
+            return
+        }
+        guard let outputURL else {
+            errorMessage = "Please choose an output location"
+            return
+        }
+        guard let originalInfo = originalImageInfo else {
+            errorMessage = "Please re-select the input image"
+            return
+        }
+        guard cropDisplayedImageSize.width > 0, cropDisplayedImageSize.height > 0 else {
+            errorMessage = "Crop preview not ready"
+            return
+        }
+
+        isProcessing = true
+        defer { isProcessing = false }
+
+        let imageWidth = CGFloat(originalInfo.width)
+        let imageHeight = CGFloat(originalInfo.height)
+        guard imageWidth > 0, imageHeight > 0 else {
+            errorMessage = "Invalid source image"
+            return
+        }
+
+        let scaleX = cropDisplayedImageSize.width / imageWidth
+        let scaleY = cropDisplayedImageSize.height / imageHeight
+        let scale = min(scaleX, scaleY)
+        guard scale > 0 else {
+            errorMessage = "Crop preview not ready"
+            return
+        }
+
+        var xPx = UInt32(max(0, (cropRect.x / scale).rounded()))
+        var yPx = UInt32(max(0, (cropRect.y / scale).rounded()))
+        var wPx = UInt32(max(1, (cropRect.width / scale).rounded()))
+        var hPx = UInt32(max(1, (cropRect.height / scale).rounded()))
+
+        let srcW = originalInfo.width
+        let srcH = originalInfo.height
+
+        if srcW > 0, xPx >= srcW { xPx = srcW - 1 }
+        if srcH > 0, yPx >= srcH { yPx = srcH - 1 }
+
+        let maxW = srcW - xPx
+        let maxH = srcH - yPx
+        wPx = min(wPx, maxW)
+        hPx = min(hPx, maxH)
+        if wPx == 0 { wPx = 1 }
+        if hPx == 0 { hPx = 1 }
+
+        let options = CropOptions(
+            x: xPx,
+            y: yPx,
+            width: wPx,
+            height: hPx,
+            outputFormat: selectedCropFormat.toUniFFIOutputFormat()
+        )
+
+        let didAccessInput = inputURL.startAccessingSecurityScopedResource()
+        let didAccessOutput = outputURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccessInput { inputURL.stopAccessingSecurityScopedResource() }
+            if didAccessOutput { outputURL.stopAccessingSecurityScopedResource() }
+        }
+
+        if !didAccessInput, !FileManager.default.isReadableFile(atPath: inputURL.path) {
+            errorMessage = "Please re-select the input image"
+            return
+        }
+
+        if !didAccessOutput {
+            let dir = outputURL.deletingLastPathComponent()
+            if !FileManager.default.isWritableFile(atPath: dir.path) {
+                errorMessage = "Please choose an output location"
+                return
+            }
+        }
+
+        do {
+            let info = try ImageResizer.cropImage(
+                inputPath: inputURL.path,
+                outputPath: outputURL.path,
+                options: options
+            )
+            resultInfo = AppImageInfo(info)
+        } catch {
+            errorMessage = userMessage(for: error)
+        }
+    }
+
+    func updateCropRect(_ rect: CropRect) {
+        cropRect = rect
     }
 
     private func sanitizeNumeric(_ input: String) -> String {

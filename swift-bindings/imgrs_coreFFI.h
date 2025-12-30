@@ -251,6 +251,11 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureStr
     );
 
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IMGRS_CORE_FN_FUNC_CROP_IMAGE
+#define UNIFFI_FFIDEF_UNIFFI_IMGRS_CORE_FN_FUNC_CROP_IMAGE
+RustBuffer uniffi_imgrs_core_fn_func_crop_image(RustBuffer input_path, RustBuffer output_path, RustBuffer options, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_IMGRS_CORE_FN_FUNC_GET_IMAGE_INFO
 #define UNIFFI_FFIDEF_UNIFFI_IMGRS_CORE_FN_FUNC_GET_IMAGE_INFO
 RustBuffer uniffi_imgrs_core_fn_func_get_image_info(RustBuffer path, RustCallStatus *_Nonnull out_status
@@ -545,6 +550,12 @@ void ffi_imgrs_core_rust_future_free_void(uint64_t handle
 #ifndef UNIFFI_FFIDEF_FFI_IMGRS_CORE_RUST_FUTURE_COMPLETE_VOID
 #define UNIFFI_FFIDEF_FFI_IMGRS_CORE_RUST_FUTURE_COMPLETE_VOID
 void ffi_imgrs_core_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IMGRS_CORE_CHECKSUM_FUNC_CROP_IMAGE
+#define UNIFFI_FFIDEF_UNIFFI_IMGRS_CORE_CHECKSUM_FUNC_CROP_IMAGE
+uint16_t uniffi_imgrs_core_checksum_func_crop_image(void
+    
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_IMGRS_CORE_CHECKSUM_FUNC_GET_IMAGE_INFO
