@@ -1,0 +1,42 @@
+namespace imgrs_core {
+  [Throws=ImageError]
+  ImageInfo get_image_info(string path);
+
+  [Throws=ImageError]
+  ImageInfo resize_image(
+    string input_path,
+    string output_path,
+    ResizeOptions options
+  );
+
+  sequence<string> get_supported_formats();
+};
+
+dictionary ImageInfo {
+  u32 width;
+  u32 height;
+  string format;
+  u64 file_size_bytes;
+  string path;
+};
+
+enum ResizeAlgorithm {
+  "Nearest",
+  "Bilinear",
+  "Lanczos3",
+};
+
+dictionary ResizeOptions {
+  u32 width;
+  u32? height;
+  ResizeAlgorithm algorithm;
+  string? output_format;
+};
+
+[Error]
+interface ImageError {
+  IoError(string message);
+  UnsupportedFormat(string format);
+  InvalidDimensions(string message);
+  ProcessingError(string message);
+};

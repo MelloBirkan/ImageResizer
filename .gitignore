@@ -19,8 +19,11 @@ build/
 
 # Swift Package Manager
 .build/
-.swiftpm/
 Packages/
+
+# Keep `.swiftpm/Package.resolved` (useful for reproducible builds), but ignore generated metadata.
+.swiftpm/xcode/
+.swiftpm/configuration/
 
 # Rust
 target/
