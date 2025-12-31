@@ -21,7 +21,20 @@ enum OperationMode: String, CaseIterable {
 @MainActor
 @Observable
 final class ImageResizerViewModel {
-    var operationMode: OperationMode = .resize
+    var operationMode: OperationMode = .resize {
+        didSet {
+            guard operationMode == .crop else { return }
+
+            if selectedImageURL == lastResizedImageURL, let lastResizeOutputURL {
+                outputURL = outputURLWithBoardSuffix(from: lastResizeOutputURL)
+                return
+            }
+
+            if oldValue == .resize, let outputURL {
+                self.outputURL = outputURLWithBoardSuffix(from: outputURL)
+            }
+        }
+    }
 
     var selectedImageURL: URL?
     var originalImageInfo: AppImageInfo?
@@ -38,6 +51,8 @@ final class ImageResizerViewModel {
     var cropDisplayedImageSize: CGSize = .zero
 
     var outputURL: URL?
+    var lastResizeOutputURL: URL?
+    var lastResizedImageURL: URL?
 
     var isProcessing: Bool = false
     var resultInfo: AppImageInfo?
@@ -94,6 +109,8 @@ final class ImageResizerViewModel {
 
         // Output must be user-selected (sandbox) via NSSavePanel.
         outputURL = nil
+        lastResizeOutputURL = nil
+        lastResizedImageURL = nil
         Task { await loadImageInfo(url) }
     }
 
@@ -114,8 +131,8 @@ final class ImageResizerViewModel {
             let info = try getImageInfo(path: url.path)
 
             originalImageInfo = AppImageInfo(info)
-            targetWidth = String(info.width)
-            targetHeight = String(info.height)
+            targetWidth = "800"
+            targetHeight = "1200"
         } catch {
             errorMessage = userMessage(for: error)
         }
@@ -157,10 +174,17 @@ final class ImageResizerViewModel {
         panel.isExtensionHidden = false
         if let selectedImageURL {
             let format: OutputFormat = (operationMode == .crop) ? selectedCropFormat : selectedFormat
-            let suggested = FileManager.default.generateOutputPath(from: selectedImageURL, format: format, mode: operationMode)
-            panel.nameFieldStringValue = suggested.lastPathComponent
+            let suggested: URL
+            if operationMode == .crop, selectedImageURL == lastResizedImageURL, let lastResizeOutputURL {
+                suggested = outputURLWithBoardSuffix(from: lastResizeOutputURL)
+            } else {
+                suggested = FileManager.default.generateOutputPath(from: selectedImageURL, format: format, mode: operationMode)
+            }
+
+            let enforced = (operationMode == .crop) ? outputURLWithBoardSuffix(from: suggested) : suggested
+            panel.nameFieldStringValue = enforced.lastPathComponent
         } else {
-            panel.nameFieldStringValue = operationMode == .crop ? "image_cropped" : "image_resized"
+            panel.nameFieldStringValue = operationMode == .crop ? "image_board" : "image_resized"
         }
         panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Desktop", isDirectory: true)
@@ -233,6 +257,8 @@ final class ImageResizerViewModel {
                 options: options
             )
             resultInfo = AppImageInfo(info)
+            lastResizeOutputURL = outputURL
+            lastResizedImageURL = inputURL
         } catch {
             errorMessage = userMessage(for: error)
         }
@@ -244,9 +270,13 @@ final class ImageResizerViewModel {
             errorMessage = "Please select an image"
             return
         }
-        guard let outputURL else {
+        guard let rawOutputURL = outputURL else {
             errorMessage = "Please choose an output location"
             return
+        }
+        let outputURL = outputURLWithBoardSuffix(from: rawOutputURL)
+        if self.outputURL != outputURL {
+            self.outputURL = outputURL
         }
         guard let originalInfo = originalImageInfo else {
             errorMessage = "Please re-select the input image"
@@ -339,6 +369,22 @@ final class ImageResizerViewModel {
 
     private func sanitizeNumeric(_ input: String) -> String {
         input.filter { $0.isNumber }
+    }
+
+    private func outputURLWithBoardSuffix(from url: URL) -> URL {
+        let directory = url.deletingLastPathComponent()
+        let ext = url.pathExtension
+
+        var base = url.deletingPathExtension().lastPathComponent
+        if base.hasSuffix("_resized") {
+            base = String(base.dropLast("_resized".count))
+        }
+        if !base.hasSuffix("_board") {
+            base += "_board"
+        }
+
+        let filename = ext.isEmpty ? base : "\(base).\(ext)"
+        return directory.appendingPathComponent(filename)
     }
 
     private func parseUInt32(_ text: String) -> UInt32? {

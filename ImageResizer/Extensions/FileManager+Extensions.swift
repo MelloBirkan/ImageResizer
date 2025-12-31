@@ -28,7 +28,7 @@ extension FileManager {
         let directory = inputURL.deletingLastPathComponent()
         let baseName = inputURL.deletingPathExtension().lastPathComponent
 
-        let suffix = mode == .crop ? "_cropped" : "_resized"
+        let suffix = mode == .crop ? "_board" : "_resized"
 
         let ext: String
         switch format ?? .sameAsInput {
